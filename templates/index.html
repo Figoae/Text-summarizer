@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Summarizer</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f8; margin:0; padding:0; display:flex; justify-content:center; align-items:flex-start; min-height:100vh; }
+        .container { background:white; width:90%; max-width:750px; margin-top:40px; padding:30px 40px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.1); }
+        h1 { text-align:center; color:#2c3e50; margin-bottom:25px; }
+        form { display:flex; flex-direction:column; gap:15px; }
+        textarea, input[type="range"], select, input[type="file"], input[type="text"] { width:100%; padding:8px; border-radius:6px; border:1px solid #ccc; }
+        .buttons { display:flex; justify-content:space-between; align-items:center; }
+        button { background-color:#3498db; color:white; border:none; padding:10px 20px; font-size:15px; border-radius:8px; cursor:pointer; transition:0.3s; }
+        button:hover { background-color:#2d82c7; }
+        button[type="reset"] { background-color:#e74c3c; }
+        button[type="reset"]:hover { background-color:#c0392b; }
+        .result-section { margin-top:30px; }
+        .feedback-section { margin-top:40px; }
+        .feedback-entry { background:#f9f9f9; padding:10px 15px; border-radius:8px; margin-bottom:10px; border:1px solid #ddd; }
+        .slider-value { text-align:right; color:#555; font-size:14px; }
+        hr { margin:30px 0; border:none; border-top:1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Text Summarizer</h1>
+
+        <!-- Voice Upload -->
+        <form action="{{ url_for('voice') }}" method="post" enctype="multipart/form-data">
+            <label for="voicefile">Upload Audio (mp3, wav, m4a):</label>
+            <input type="file" name="voicefile" accept="audio/*" required>
+            <button type="submit">Transcribe Voice</button>
+        </form>
+
+        <hr>
+
+        <!-- Text Summarizer -->
+        <form action="{{ url_for('index') }}" method="post">
+            <label for="data">Enter your text:</label>
+            <textarea id="data" name="data" rows="8" placeholder="Paste your text here..." required>{{ result if result else '' }}</textarea>
+
+            <label for="maxL">Select summary length:</label>
+            <input type="range" id="maxL" name="maxL" min="20" max="1000" value="100" oninput="updateValue(this.value)">
+            <div class="slider-value">Length: <span id="sliderVal">100</span> words</div>
+
+            <div class="buttons">
+                <button type="reset" onclick="resetSlider()">Clear</button>
+                <button type="submit">Summarize Text</button>
+            </div>
+        </form>
+
+        <hr>
+
+        <!-- 📄 Document Summarizer -->
+        <form action="{{ url_for('document') }}" method="post" enctype="multipart/form-data">
+            <label for="docfile">Upload Document (PDF, DOCX, TXT):</label>
+            <input type="file" id="docfile" name="docfile" accept=".pdf,.docx,.txt" required>
+
+            <label for="maxLdoc">Select summary length:</label>
+            <input type="range" id="maxLdoc" name="maxL" min="50" max="1000" value="150" oninput="updateDocValue(this.value)">
+            <div class="slider-value">Length: <span id="docSliderVal">150</span> words</div>
+
+            <div class="buttons">
+                <button type="reset" onclick="resetDocSlider()">Clear</button>
+                <button type="submit">Summarize Document</button>
+            </div>
+        </form>
+
+        {% if result %}
+        <div class="result-section">
+            <h3>Output:</h3>
+            <textarea rows="10" readonly>{{ result }}</textarea>
+        </div>
+        {% endif %}
+
+        <hr>
+
+        <!-- Feedback -->
+        <div class="feedback-section">
+            <h3>Leave Feedback</h3>
+            <form action="{{ url_for('feedback') }}" method="post">
+                <input type="text" name="name" placeholder="Your Name (optional)">
+                <textarea name="comment" rows="3" placeholder="Write your feedback..."></textarea>
+                <label for="rating">Rating:</label>
+                <select name="rating">
+                    <option value="5">⭐️⭐️⭐️⭐️⭐️</option>
+                    <option value="4">⭐️⭐️⭐️⭐️</option>
+                    <option value="3">⭐️⭐️⭐️</option>
+                    <option value="2">⭐️⭐️</option>
+                    <option value="1">⭐️</option>
+                </select>
+                <button type="submit">Submit Feedback</button>
+            </form>
+
+            {% if feedbacks %}
+            <h4 style="margin-top:20px;">User Feedback</h4>
+            {% for fb in feedbacks %}
+                <div class="feedback-entry">
+                    <strong>{{ fb.name }}</strong> rated <b>{{ fb.rating }}/5</b><br>
+                    <em>{{ fb.comment }}</em>
+                </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function updateValue(val) { document.getElementById('sliderVal').innerText = val; }
+        function resetSlider() { document.getElementById('maxL').value = 100; document.getElementById('sliderVal').innerText = 100; }
+
+        function updateDocValue(val) { document.getElementById('docSliderVal').innerText = val; }
+        function resetDocSlider() { document.getElementById('maxLdoc').value = 150; document.getElementById('docSliderVal').innerText = 150; }
+    </script>
+</body>
+</html>
