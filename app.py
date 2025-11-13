@@ -70,33 +70,6 @@ def summarize_text(text, word_limit):
     summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
     summary = trim_to_word_limit(summary, word_limit)
     return summary
-from datasets import load_metric
-from jiwer import wer
-
-# Load ROUGE metric once
-rouge_metric = load_metric("rouge")
-
-# ---------- Evaluation Functions ----------
-
-def evaluate_summary(reference, generated):
-    """Compute ROUGE scores between reference and generated summaries."""
-    if not reference.strip() or not generated.strip():
-        return {"error": "Empty reference or generated summary."}
-
-    results = rouge_metric.compute(predictions=[generated], references=[reference])
-    return {
-        "ROUGE-1": round(results["rouge1"].mid.fmeasure, 3),
-        "ROUGE-2": round(results["rouge2"].mid.fmeasure, 3),
-        "ROUGE-L": round(results["rougeL"].mid.fmeasure, 3)
-    }
-
-
-def evaluate_transcription(reference, predicted):
-    """Compute Word Error Rate (WER) for Whisper model."""
-    if not reference.strip() or not predicted.strip():
-        return {"error": "Empty reference or transcription."}
-    error_rate = wer(reference, predicted)
-    return {"WER": round(error_rate, 3)}
 
 
 # ---------- Routes ----------
@@ -170,29 +143,6 @@ def feedback():
 
     return render_template("index.html", input_text="", result="", feedbacks=feedback_list)
 
-@app.route("/evaluate", methods=["POST"])
-def evaluate():
-    task_type = request.form.get("task")
-    reference = request.form.get("reference", "")
-    generated = request.form.get("generated", "")
-
-    if task_type == "summary":
-        scores = evaluate_summary(reference, generated)
-    elif task_type == "transcription":
-        scores = evaluate_transcription(reference, generated)
-    else:
-        scores = {"error": "Invalid task type."}
-
-    return render_template(
-        "index.html",
-        input_text="",
-        result=str(scores),
-        feedbacks=feedback_list
-    )
-
-
-
 
 if __name__ == "__main__":
     app.run(debug=True)
-
