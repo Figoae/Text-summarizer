@@ -18,6 +18,7 @@ app = Flask(__name__)
 feedback_list = []
 
 
+# ---------- Utility Functions ----------
 def extract_text_from_file(file_path):
     """Extract text from PDF, DOCX, or TXT file."""
     ext = os.path.splitext(file_path)[-1].lower()
@@ -37,8 +38,7 @@ def extract_text_from_file(file_path):
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             return f.read()
 
-    else:
-        return ""
+    return ""
 
 
 def trim_to_word_limit(summary_text, word_limit):
@@ -54,7 +54,6 @@ def summarize_text(text, word_limit):
     if not text.strip():
         return "No text found to summarize."
 
-    # Convert word limit to token limit (roughly 1.3x)
     max_len = int(word_limit * 1.3)
     min_len = max(20, int(word_limit * 0.8))
 
@@ -71,17 +70,50 @@ def summarize_text(text, word_limit):
     summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
     summary = trim_to_word_limit(summary, word_limit)
     return summary
+from datasets import load_metric
+from jiwer import wer
+
+# Load ROUGE metric once
+rouge_metric = load_metric("rouge")
+
+# ---------- Evaluation Functions ----------
+
+def evaluate_summary(reference, generated):
+    """Compute ROUGE scores between reference and generated summaries."""
+    if not reference.strip() or not generated.strip():
+        return {"error": "Empty reference or generated summary."}
+
+    results = rouge_metric.compute(predictions=[generated], references=[reference])
+    return {
+        "ROUGE-1": round(results["rouge1"].mid.fmeasure, 3),
+        "ROUGE-2": round(results["rouge2"].mid.fmeasure, 3),
+        "ROUGE-L": round(results["rougeL"].mid.fmeasure, 3)
+    }
 
 
+def evaluate_transcription(reference, predicted):
+    """Compute Word Error Rate (WER) for Whisper model."""
+    if not reference.strip() or not predicted.strip():
+        return {"error": "Empty reference or transcription."}
+    error_rate = wer(reference, predicted)
+    return {"WER": round(error_rate, 3)}
+
+
+# ---------- Routes ----------
 @app.route("/", methods=["GET", "POST"])
 def index():
-    summary = None
-    if request.method == "POST" and "data" in request.form:
-        text = request.form["data"]
-        word_limit = int(request.form["maxL"])
-        summary = summarize_text(text, word_limit)
+    user_text = ""
+    summary = ""
 
-    return render_template("index.html", result=summary, feedbacks=feedback_list)
+    if request.method == "POST" and "data" in request.form:
+        user_text = request.form["data"]
+        word_limit = int(request.form["maxL"])
+        summary = summarize_text(user_text, word_limit)
+
+    return render_template("index.html",
+                           input_text=user_text,
+                           result=summary,
+                           feedbacks=feedback_list)
 
 
 @app.route("/voice", methods=["POST"])
@@ -100,7 +132,7 @@ def voice():
     except Exception as e:
         transcription = f"Error transcribing audio: {e}"
 
-    return render_template("index.html", result=transcription, feedbacks=feedback_list)
+    return render_template("index.html", input_text=transcription, result="", feedbacks=feedback_list)
 
 
 @app.route("/document", methods=["POST"])
@@ -122,7 +154,10 @@ def document():
     word_limit = int(request.form.get("maxL", 150))
     summary = summarize_text(text, word_limit)
 
-    return render_template("index.html", result=summary, feedbacks=feedback_list)
+    return render_template("index.html",
+                           input_text=text,
+                           result=summary,
+                           feedbacks=feedback_list)
 
 
 @app.route("/feedback", methods=["POST"])
@@ -133,8 +168,31 @@ def feedback():
 
     feedback_list.append({"name": name, "comment": comment, "rating": rating})
 
-    return render_template("index.html", result=None, feedbacks=feedback_list)
+    return render_template("index.html", input_text="", result="", feedbacks=feedback_list)
+
+@app.route("/evaluate", methods=["POST"])
+def evaluate():
+    task_type = request.form.get("task")
+    reference = request.form.get("reference", "")
+    generated = request.form.get("generated", "")
+
+    if task_type == "summary":
+        scores = evaluate_summary(reference, generated)
+    elif task_type == "transcription":
+        scores = evaluate_transcription(reference, generated)
+    else:
+        scores = {"error": "Invalid task type."}
+
+    return render_template(
+        "index.html",
+        input_text="",
+        result=str(scores),
+        feedbacks=feedback_list
+    )
+
+
 
 
 if __name__ == "__main__":
     app.run(debug=True)
+
